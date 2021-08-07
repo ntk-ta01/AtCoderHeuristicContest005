@@ -1,8 +1,8 @@
 #![allow(non_snake_case, dead_code, unused_imports, unused_macros)]
 
-use std::cmp::Reverse;
-
 use proconio::{input, marker::*, source::Source};
+use rand::{prelude::ThreadRng, seq::SliceRandom};
+use std::cmp::Reverse;
 
 // --releaseでoverflow無視
 // DIJ と DIRが合っているか確認する
@@ -18,6 +18,8 @@ type Output = String;
 
 const INF: usize = 1_000_000_000_000_000_000;
 
+const TIMELIMIT: f64 = 2.95;
+
 struct Input {
     n: usize,
     s: (usize, usize),
@@ -31,26 +33,48 @@ fn main() {
         c: [Chars; n],
     }
     let input = Input { n, s, c };
-    let mut route = vec![];
-    let mut visited = vec![vec![false; n]; n];
-    let mut seen = vec![vec![false; n]; n];
-    #[allow(clippy::needless_range_loop)]
-    for i in 0..n {
-        for j in 0..n {
-            seen[i][j] = input.c[i][j] == '#';
+    let timer = Timer::new();
+    let mut count = 0;
+    let mut best_answer = String::new();
+    let mut best_score = 0;
+    loop {
+        count += 1;
+        if count >= 100 {
+            let passed = timer.get_time() / TIMELIMIT;
+            if passed >= 1.0 {
+                break;
+            }
+            count = 0;
+        }
+        let mut route = vec![];
+        let mut visited = vec![vec![false; n]; n];
+        let mut seen = vec![vec![false; n]; n];
+        #[allow(clippy::needless_range_loop)]
+        for i in 0..n {
+            for j in 0..n {
+                seen[i][j] = input.c[i][j] == '#';
+            }
+        }
+        let mut all_seen = false;
+        let mut rng = rand::thread_rng();
+        dfs(
+            &input,
+            input.s,
+            &mut visited,
+            &mut route,
+            &mut seen,
+            &mut all_seen,
+            &mut rng,
+        );
+        let answer = route.iter().map(|idx| DIR[*idx]).collect::<Output>();
+        let (now_score, _) = compute_score_detail(&input, &answer);
+        if best_score < now_score {
+            best_answer = answer;
+            best_score = now_score;
         }
     }
-    let mut all_seen = false;
-    dfs(
-        &input,
-        input.s,
-        &mut visited,
-        &mut route,
-        &mut seen,
-        &mut all_seen,
-    );
-    let answer = route.iter().map(|idx| DIR[*idx]).collect::<String>();
-    println!("{}", answer);
+    println!("{}", best_answer);
+    // eprintln!("{}", &best_score);
 }
 
 fn dfs(
@@ -60,6 +84,7 @@ fn dfs(
     route: &mut Vec<usize>,
     seen: &mut [Vec<bool>],
     all_seen: &mut bool,
+    rng: &mut ThreadRng,
 ) {
     if *all_seen {
         return;
@@ -83,9 +108,12 @@ fn dfs(
         }
         return;
     }
-    for (oi, (di, dj)) in DIJ.iter().enumerate() {
-        let next_i = v.0 + *di;
-        let next_j = v.1 + *dj;
+    let mut ord = vec![0, 1, 2, 3];
+    ord.shuffle(rng);
+    for oi in ord {
+        let (di, dj) = DIJ[oi];
+        let next_i = v.0 + di;
+        let next_j = v.1 + dj;
         if next_i >= input.n
             || next_j >= input.n
             || visited[next_i][next_j]
@@ -95,8 +123,8 @@ fn dfs(
         }
         visited[next_i][next_j] = true;
         route.push(oi);
-        if !is_partolled(input, next_i, next_j, (*di, *dj), seen) {
-            dfs(input, (next_i, next_j), visited, route, seen, all_seen);
+        if !is_partolled(input, next_i, next_j, (di, dj), seen) {
+            dfs(input, (next_i, next_j), visited, route, seen, all_seen, rng);
             if *all_seen {
                 return;
             }
@@ -206,4 +234,99 @@ fn dijkstra(sh: usize, sw: usize, input: &Input) -> Vec<usize> {
     }
     route.reverse();
     route
+}
+
+fn compute_score_detail(input: &Input, out: &Output) -> (i64, String) {
+    let (visited, length, ps, err) = get_visited(input, out);
+    if err.len() > 0 {
+        return (0, err);
+    }
+    let mut num = 0;
+    let mut den = 0;
+    for i in 0..input.n {
+        for j in 0..input.n {
+            if input.c[i][j] != '#' {
+                den += 1;
+                if visited[i][j] {
+                    num += 1;
+                }
+            }
+        }
+    }
+    if *ps.last().unwrap() != input.s {
+        return (0, "You have to go back to the starting point".to_owned());
+    }
+    let mut score = 1e4 * num as f64 / den as f64;
+    if num == den {
+        score += 1e7 * input.n as f64 / length as f64;
+    }
+    (score.round() as i64, String::new())
+}
+
+fn get_visited(input: &Input, out: &Output) -> (Vec<Vec<bool>>, i64, Vec<(usize, usize)>, String) {
+    let mut visited = mat![false; input.n; input.n];
+    let (mut pi, mut pj) = input.s;
+    let mut length = 0;
+    let mut ps = vec![(pi, pj)];
+    let mut err = String::new();
+    for c in out.chars() {
+        if let Some(d) = DIR.iter().position(|&d| d == c) {
+            pi += DIJ[d].0;
+            pj += DIJ[d].1;
+            if pi >= input.n || pj >= input.n || input.c[pi][pj] == '#' {
+                err = "Visiting an obstacle".to_owned();
+                break;
+            }
+        } else {
+            err = format!("Illegal output: {}", c);
+            break;
+        }
+        length += (input.c[pi][pj] as u8 - b'0') as i64;
+        ps.push((pi, pj));
+    }
+    for &(pi, pj) in &ps {
+        for d in 0..4 {
+            for k in 0.. {
+                let i = pi + DIJ[d].0 * k;
+                let j = pj + DIJ[d].1 * k;
+                if i < input.n && j < input.n && input.c[i][j] != '#' {
+                    visited[i][j] = true;
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+    (visited, length, ps, err)
+}
+
+#[macro_export]
+macro_rules! mat {
+	($($e:expr),*) => { Vec::from(vec![$($e),*]) };
+	($($e:expr,)*) => { Vec::from(vec![$($e),*]) };
+	($e:expr; $d:expr) => { Vec::from(vec![$e; $d]) };
+	($e:expr; $d:expr $(; $ds:expr)+) => { Vec::from(vec![mat![$e $(; $ds)*]; $d]) };
+}
+
+pub fn get_time() -> f64 {
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap();
+    t.as_secs() as f64 + t.subsec_nanos() as f64 * 1e-9
+}
+
+struct Timer {
+    start_time: f64,
+}
+
+impl Timer {
+    fn new() -> Timer {
+        Timer {
+            start_time: get_time(),
+        }
+    }
+
+    fn get_time(&self) -> f64 {
+        get_time() - self.start_time
+    }
 }
