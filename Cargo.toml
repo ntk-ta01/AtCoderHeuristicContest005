@@ -1,0 +1,18 @@
+[package]
+name = "ahc005"
+version = "0.1.0"
+authors = ["ntk <43851479+ntk-ta01@users.noreply.github.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+
+[workspace]
+members = [
+    "tools",
+]
+
+[dependencies]
+rand = { version = "=0.7.3", features = ["small_rng"] }
+rand_chacha = "=0.2.2"
+proconio = { version = "=0.3.6", features = ["derive"] }
