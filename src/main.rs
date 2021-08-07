@@ -29,23 +29,12 @@ fn main() {
     let input = Input { n, s, c };
     let mut route = vec![];
     let mut visited = vec![vec![false; n]; n];
-    dfs_iki(&input, input.s, &mut visited, &mut route);
-    let answer_iki = route.iter().map(|idx| DIR[*idx]).collect::<String>();
-    route.reverse();
-    for r in route.iter_mut() {
-        *r = match *r {
-            0 => 3,
-            1 => 2,
-            2 => 1,
-            3 => 0,
-            _ => unreachable!(),
-        };
-    }
-    let answer_kaeri = route.iter().map(|idx| DIR[*idx]).collect::<String>();
-    println!("{}{}", answer_iki, answer_kaeri);
+    dfs(&input, input.s, &mut visited, &mut route);
+    let answer = route.iter().map(|idx| DIR[*idx]).collect::<String>();
+    println!("{}", answer);
 }
 
-fn dfs_iki(input: &Input, v: (usize, usize), visited: &mut [Vec<bool>], route: &mut Vec<usize>) {
+fn dfs(input: &Input, v: (usize, usize), visited: &mut [Vec<bool>], route: &mut Vec<usize>) {
     for (oi, (di, dj)) in DIJ.iter().enumerate() {
         let next_i = v.0 + *di;
         let next_j = v.1 + *dj;
@@ -58,7 +47,14 @@ fn dfs_iki(input: &Input, v: (usize, usize), visited: &mut [Vec<bool>], route: &
         }
         visited[next_i][next_j] = true;
         route.push(oi);
-        dfs_iki(input, (next_i, next_j), visited, route);
-        return;
+        dfs(input, (next_i, next_j), visited, route);
+        let b_oi = match oi {
+            0 => 3,
+            1 => 2,
+            2 => 1,
+            3 => 0,
+            _ => unreachable!(),
+        };
+        route.push(b_oi);
     }
 }
