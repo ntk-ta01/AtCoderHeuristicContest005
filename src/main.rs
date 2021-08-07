@@ -67,7 +67,7 @@ fn main() {
             &mut rng,
         );
         let answer = route.iter().map(|idx| DIR[*idx]).collect::<Output>();
-        let (now_score, _) = compute_score_detail(&input, &answer);
+        let now_score = compute_score_detail(&input, &answer);
         if best_score < now_score {
             best_answer = answer;
             best_score = now_score;
@@ -236,11 +236,8 @@ fn dijkstra(sh: usize, sw: usize, input: &Input) -> Vec<usize> {
     route
 }
 
-fn compute_score_detail(input: &Input, out: &Output) -> (i64, String) {
-    let (visited, length, ps, err) = get_visited(input, out);
-    if err.len() > 0 {
-        return (0, err);
-    }
+fn compute_score_detail(input: &Input, out: &Output) -> i64 {
+    let (visited, length, ps) = get_visited(input, out);
     let mut num = 0;
     let mut den = 0;
     for i in 0..input.n {
@@ -254,31 +251,28 @@ fn compute_score_detail(input: &Input, out: &Output) -> (i64, String) {
         }
     }
     if *ps.last().unwrap() != input.s {
-        return (0, "You have to go back to the starting point".to_owned());
+        return 0;
     }
     let mut score = 1e4 * num as f64 / den as f64;
     if num == den {
         score += 1e7 * input.n as f64 / length as f64;
     }
-    (score.round() as i64, String::new())
+    score.round() as i64
 }
 
-fn get_visited(input: &Input, out: &Output) -> (Vec<Vec<bool>>, i64, Vec<(usize, usize)>, String) {
+fn get_visited(input: &Input, out: &Output) -> (Vec<Vec<bool>>, i64, Vec<(usize, usize)>) {
     let mut visited = mat![false; input.n; input.n];
     let (mut pi, mut pj) = input.s;
     let mut length = 0;
     let mut ps = vec![(pi, pj)];
-    let mut err = String::new();
     for c in out.chars() {
         if let Some(d) = DIR.iter().position(|&d| d == c) {
             pi += DIJ[d].0;
             pj += DIJ[d].1;
             if pi >= input.n || pj >= input.n || input.c[pi][pj] == '#' {
-                err = "Visiting an obstacle".to_owned();
                 break;
             }
         } else {
-            err = format!("Illegal output: {}", c);
             break;
         }
         length += (input.c[pi][pj] as u8 - b'0') as i64;
@@ -297,7 +291,7 @@ fn get_visited(input: &Input, out: &Output) -> (Vec<Vec<bool>>, i64, Vec<(usize,
             }
         }
     }
-    (visited, length, ps, err)
+    (visited, length, ps)
 }
 
 #[macro_export]
